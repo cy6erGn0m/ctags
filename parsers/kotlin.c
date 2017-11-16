@@ -62,7 +62,11 @@ enum TokenType {
     token_comma,
     token_dot,
     token_star,
-    token_other
+    token_eof,
+    token_comment_start,
+    token_comment_end,
+    token_comment_line,
+    token_other,
         /* here we don't need to enumarate all keywords as we only need to parse declarations (top-level parsing) */
 };
 
@@ -100,7 +104,9 @@ static void init_delimiters() {
     delimiters[')'] = 1;
     delimiters['{'] = 1;
     delimiters['}'] = 1;
-    
+    delimiters['<'] = 1;
+    delimiters['>'] = 1;
+    delimiters['.'] = 1;
 }
 
 struct Token {
@@ -128,6 +134,7 @@ static void parse_number(struct Token *const token) {
         } else {
             ungetcToInputFile(ch);
             end = 1;
+            break;
         }
     }
 
@@ -150,7 +157,7 @@ static void parse_number(struct Token *const token) {
 }
 
 
-static void token(struct Token * token) {
+static void parse_token(struct Token * token) {
     token->keyword = keyword_other;
     token->token = token_other;
     token->line_number = getInputLineNumber();
@@ -161,11 +168,12 @@ static void token(struct Token * token) {
     while (true) {
         int ch = getcFromInputFile();
         if (ch == ' ' || ch == '\r' || ch == '\n' || ch == '\t') continue;
-        if (ch == EOF) return;
-        first = ch;
-        break;
+        if (ch == EOF) {
+            token->token = token_eof;
+            return;
+        }
 
-        vStringPut(token->buffer, ch);
+        first = ch;
         token->line_number = getInputLineNumber();
         token->file_position = getInputFilePosition();
         break;
@@ -207,11 +215,28 @@ static void token(struct Token * token) {
             return;
     }
 
+    if (first == '/') {
+        int second = getcFromInputFile();
+        if (second == '/') {
+            token->token = token_comment_line;
+            return;
+        } else if (second == '*') {
+            token->token = token_comment_start;
+            return;
+        } else {
+            ungetcToInputFile(second);
+            token->token = token_other;
+            return;
+        }
+    }
+
     if (first >= '0' && first <= '9') {
         vStringPut(token->buffer, first);
         parse_number(token);
         return;
     }
+
+    vStringPut(token->buffer, first);
 
     vString *const buffer = token->buffer;
     int* dd = delimiters;
@@ -234,6 +259,21 @@ static void token(struct Token * token) {
     }
 }
 
+static void skip_comment_block() {
+    int c = 0;
+    while (true) {
+        int first = getcFromInputFile();
+
+        if (first == '*' && c == 0) {
+            int second = getcFromInputFile();
+            if (second == '/') break;
+            if (second == '*') c = 1;
+            else c = 0;
+        } else if (first == '/' && c == 1) break;
+        else c = 0;
+    }
+}
+
 static void skip_until_eol() {
     while (true) {
         int ch = getcFromInputFile();
@@ -245,6 +285,45 @@ static void find_kotlin_tags() {
     struct Token t;
     t.buffer = vStringNew();
 
+    while (true) {
+        parse_token(&t);
+
+        if (t.token == token_eof) break;
+        if (t.token == token_comment_start) {
+            skip_comment_block();
+        } else if (t.token == token_comment_line) {
+            skip_until_eol();
+        } else if (t.token == token_keyword) {
+            // puts(vStringValue(t.buffer));
+            if (t.keyword == modifier_public) {
+            } else if (t.keyword == modifier_private) {
+            }
+            else if (t.keyword == keyword_class || t.keyword == keyword_interface) {
+                // class name
+                parse_token(&t);
+
+                if (t.token == token_identifier) {
+                    tagEntryInfo e;
+                    initTagEntry(&e, 
+                            vStringValue(t.buffer), 
+                            0 /* kind */
+                            );
+
+                    e.lineNumber = t.line_number;
+                    e.filePosition = t.file_position;
+                    makeTagEntry(&e);
+                }
+
+                skip_until_eol();
+            } else {
+                skip_until_eol();
+            }
+        } else if (t.token == token_identifier) {
+            // most likely yet another modifier, simply ignore it
+        }
+    }
+
+    vStringDelete(t.buffer);
 }
 
 static void initialize (const langType language)
