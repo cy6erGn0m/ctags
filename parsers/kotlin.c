@@ -385,7 +385,10 @@ static void find_kotlin_tags() {
                 if (t.token == token_arrow_open) {
                     // type parameters list
                     skip_open_close('>');
-                } else if (t.token == token_identifier) {
+                    parse_token(&t);
+                }
+
+                if (t.token == token_identifier) {
                     // receiver or function name
 
                     parse_token(&sub);
