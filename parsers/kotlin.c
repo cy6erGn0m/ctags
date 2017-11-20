@@ -372,6 +372,7 @@ static void find_kotlin_tags() {
             // puts(vStringValue(t.buffer));
             if (t.keyword == modifier_public || t.keyword == modifier_internal ||
                     t.keyword == modifier_private || t.keyword == modifier_abstract ||
+                    t.keyword == modifier_protected ||
                     t.keyword == modifier_open ||
                     t.keyword == modifier_final ||
                     t.keyword == modifier_override ||
