@@ -25,6 +25,12 @@ static kindDefinition KotlinKinds[] = {
     { true, 't', "typealias", "typealiases" }
 };
 
+enum DeclarationKind {
+    kind_class,
+    kind_function,
+    kind_typealias
+};
+
 enum KeywordType {
     keyword_package,
     keyword_import,
@@ -325,6 +331,16 @@ static void skip_open_close(int expected_close) {
     }
 }
 
+static void make_tag_entry(struct Token * t, int kind) {
+    tagEntryInfo e;
+    initTagEntry(&e, vStringValue(t->buffer), kind);
+
+    e.lineNumber = t->line_number;
+    e.filePosition = t->file_position;
+
+    makeTagEntry(&e);
+}
+
 static void find_kotlin_tags() {
     struct Token t;
     struct Token sub;
@@ -350,18 +366,18 @@ static void find_kotlin_tags() {
                 parse_token(&t);
 
                 if (t.token == token_identifier) {
-                    tagEntryInfo e;
-                    initTagEntry(&e, 
-                            vStringValue(t.buffer), 
-                            0 /* kind */
-                            );
-
-                    e.lineNumber = t.line_number;
-                    e.filePosition = t.file_position;
-                    makeTagEntry(&e);
+                    make_tag_entry(&t, kind_class);
                 }
 
                 skip_until_eol();
+            } else if (t.keyword == keyword_typealias) {
+                // typealias A=real type ....
+                
+                parse_token(&t);
+                
+                if (t.token == token_identifier) {
+                    make_tag_entry(&t, kind_typealias);
+                }
             } else if (t.keyword == keyword_fun) {
                 // angle, receiver or function name
                 parse_token(&t);
@@ -377,19 +393,10 @@ static void find_kotlin_tags() {
                     if (sub.token == token_dot) {
                         parse_token(&sub);
                         if (sub.token == token_identifier) {
-                            tagEntryInfo e;
-                            initTagEntry(&e, vStringValue(sub.buffer), 1);
-                            e.lineNumber = sub.line_number;
-                            e.filePosition = sub.file_position;
-                            makeTagEntry(&e);
+                            make_tag_entry(&sub, kind_function);
                         }
                     } else if (sub.token == token_par_open) {
-                        tagEntryInfo e;
-                        initTagEntry(&e, vStringValue(t.buffer), 1);
-                        e.lineNumber = t.line_number;
-                        e.filePosition = t.file_position;
-
-                        makeTagEntry(&e);
+                        make_tag_entry(&t, kind_function);
                     } else {
                         // recover unexpected
                         skip_until_eol();
