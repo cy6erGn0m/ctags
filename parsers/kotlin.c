@@ -22,13 +22,15 @@ static int Lang_kotlin;
 static kindDefinition KotlinKinds[] = {
 	{ true, 'c', "class",  "classes" },
 	{ true, 'f', "function", "functions" },
-    { true, 't', "typealias", "typealiases" }
+    { true, 't', "typealias", "typealiases" },
+    { true, 'C', "const", "constants" }
 };
 
 enum DeclarationKind {
     kind_class,
     kind_function,
-    kind_typealias
+    kind_typealias,
+    kind_const
 };
 
 enum KeywordType {
@@ -48,7 +50,12 @@ enum KeywordType {
     modifier_internal,
     modifier_sealed,
     modifier_enum,
-    modifier_abstract
+    modifier_abstract,
+    modifier_open,
+    modifier_override,
+    modifier_final,
+    modifier_suspend,
+    modifier_const
 };
 
 enum TokenType {
@@ -91,7 +98,12 @@ static const keywordTable KotlinKeywordTable[] = {
     { "internal", modifier_internal },
     { "sealed", modifier_sealed },
     { "enum", modifier_enum },
-    { "abstract", modifier_abstract }
+    { "abstract", modifier_abstract },
+    { "open", modifier_open },
+    { "override", modifier_override },
+    { "final", modifier_final },
+    { "suspend", modifier_suspend },
+    { "const", modifier_const }
 };
 
 static int delimiters[128];
@@ -358,10 +370,13 @@ static void find_kotlin_tags() {
             skip_until_eol();
         } else if (t.token == token_keyword) {
             // puts(vStringValue(t.buffer));
-            if (t.keyword == modifier_public) {
-            } else if (t.keyword == modifier_private) {
-            }
-            else if (t.keyword == keyword_class || t.keyword == keyword_interface) {
+            if (t.keyword == modifier_public || t.keyword == modifier_internal ||
+                    t.keyword == modifier_private || t.keyword == modifier_abstract ||
+                    t.keyword == modifier_open ||
+                    t.keyword == modifier_final ||
+                    t.keyword == modifier_override ||
+                    t.keyword == modifier_suspend) {
+            } else if (t.keyword == keyword_class || t.keyword == keyword_interface) {
                 // class name
                 parse_token(&t);
 
