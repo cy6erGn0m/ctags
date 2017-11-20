@@ -128,6 +128,8 @@ static void parse_number(struct Token *const token) {
         int ch = getcFromInputFile();
         if (ch >= '0' && ch <= '9') {
             vStringPut(buffer, ch);
+        } else if (ch == '_') {
+            vStringPut(buffer, ch);
         } else if (ch == '.') {
             vStringPut(buffer, ch);
             break;
@@ -142,6 +144,8 @@ static void parse_number(struct Token *const token) {
         while (true) {
             int ch = getcFromInputFile();
             if (ch >= '0' && ch <= '9') {
+                vStringPut(buffer, ch);
+            } else if (ch == '_') {
                 vStringPut(buffer, ch);
             } else if (ch == 'f') {
                 vStringPut(buffer, ch);
@@ -281,9 +285,52 @@ static void skip_until_eol() {
     }
 }
 
+static void skip_open_close(int expected_close) {
+    int curly = 0;
+    int square = 0;
+    int pars = 0;
+    int arrows = 0;
+
+    if (expected_close == ')') pars ++;
+    else if (expected_close == '}') curly ++;
+    else if (expected_close == ']') square ++;
+    else if (expected_close == '>') arrows ++;
+    // else TODO fail
+
+    while (true) {
+        int ch = getcFromInputFile();
+
+        if (ch == EOF) return;
+        if (ch == '(') pars ++;
+        else if (ch == ')') pars --;
+        else if (ch == '{') curly ++;
+        else if (ch == '}') curly --;
+        else if (ch == '[') square ++;
+        else if (ch == ']') square --;
+        else if (ch == '<') arrows ++;
+        else if (ch == '>') arrows --;
+        else if (ch == '/') {
+            int next = getcFromInputFile();
+            if (next == '/') skip_until_eol();
+            else if (next == '*') skip_comment_block();
+            // else discard character
+        }
+        // else discard character
+        // TODO skip string literal
+
+        if (ch == expected_close && pars == 0 &&
+                square == 0 && curly == 0 && arrows == 0) {
+            break;
+        }
+    }
+}
+
 static void find_kotlin_tags() {
     struct Token t;
+    struct Token sub;
+
     t.buffer = vStringNew();
+    sub.buffer = vStringNew();
 
     while (true) {
         parse_token(&t);
@@ -315,6 +362,42 @@ static void find_kotlin_tags() {
                 }
 
                 skip_until_eol();
+            } else if (t.keyword == keyword_fun) {
+                // angle, receiver or function name
+                parse_token(&t);
+
+                if (t.token == token_arrow_open) {
+                    // type parameters list
+                    skip_open_close('>');
+                } else if (t.token == token_identifier) {
+                    // receiver or function name
+
+                    parse_token(&sub);
+
+                    if (sub.token == token_dot) {
+                        parse_token(&sub);
+                        if (sub.token == token_identifier) {
+                            tagEntryInfo e;
+                            initTagEntry(&e, vStringValue(sub.buffer), 1);
+                            e.lineNumber = sub.line_number;
+                            e.filePosition = sub.file_position;
+                            makeTagEntry(&e);
+                        }
+                    } else if (sub.token == token_par_open) {
+                        tagEntryInfo e;
+                        initTagEntry(&e, vStringValue(t.buffer), 1);
+                        e.lineNumber = t.line_number;
+                        e.filePosition = t.file_position;
+
+                        makeTagEntry(&e);
+                    } else {
+                        // recover unexpected
+                        skip_until_eol();
+                    }
+                } else {
+                    // recover unexpected
+                    skip_until_eol();
+                }
             } else {
                 skip_until_eol();
             }
@@ -324,6 +407,7 @@ static void find_kotlin_tags() {
     }
 
     vStringDelete(t.buffer);
+    vStringDelete(sub.buffer);
 }
 
 static void initialize (const langType language)
