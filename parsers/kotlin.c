@@ -393,6 +393,19 @@ static void find_kotlin_tags() {
                 if (t.token == token_identifier) {
                     make_tag_entry(&t, kind_typealias);
                 }
+            } else if (t.keyword == modifier_const) {
+                // const val xx [:type] = initializer
+                
+                parse_token(&t);
+                if (t.keyword == keyword_val) {
+                    parse_token(&t);
+
+                    if (t.token == token_identifier) {
+                        make_tag_entry(&t, kind_const);
+                    }
+                }
+
+                skip_until_eol();
             } else if (t.keyword == keyword_fun) {
                 // angle, receiver or function name
                 parse_token(&t);
