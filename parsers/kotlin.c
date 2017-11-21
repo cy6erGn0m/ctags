@@ -42,6 +42,7 @@ enum KeywordType {
     keyword_fun,
     keyword_val,
     keyword_var,
+    keyword_object,
     keyword_other,
 
     modifier_private,
@@ -79,6 +80,8 @@ enum TokenType {
     token_comment_start,
     token_comment_end,
     token_comment_line,
+    token_colon,
+    token_bax,
     token_other,
         /* here we don't need to enumarate all keywords as we only need to parse declarations (top-level parsing) */
 };
@@ -92,6 +95,7 @@ static const keywordTable KotlinKeywordTable[] = {
     { "fun", keyword_fun },
     { "val", keyword_val },
     { "var", keyword_var },
+    { "object", keyword_object },
     { "private", modifier_private },
     { "protected", modifier_protected },
     { "public", modifier_public },
@@ -235,6 +239,12 @@ static void parse_token(struct Token * token) {
         case ';':
             token->token = token_sem;
             return;
+        case ':':
+            token->token = token_colon;
+            return;
+        case '$':
+            token->token = token_bax;
+            return;
     }
 
     if (first == '/') {
@@ -369,15 +379,16 @@ static void find_kotlin_tags() {
         } else if (t.token == token_comment_line) {
             skip_until_eol();
         } else if (t.token == token_keyword) {
-            // puts(vStringValue(t.buffer));
+            // printf("keyword %s\n", vStringValue(t.buffer));
             if (t.keyword == modifier_public || t.keyword == modifier_internal ||
                     t.keyword == modifier_private || t.keyword == modifier_abstract ||
                     t.keyword == modifier_protected ||
                     t.keyword == modifier_open ||
                     t.keyword == modifier_final ||
                     t.keyword == modifier_override ||
+                    t.keyword == modifier_sealed || 
                     t.keyword == modifier_suspend) {
-            } else if (t.keyword == keyword_class || t.keyword == keyword_interface) {
+            } else if (t.keyword == keyword_class || t.keyword == keyword_interface || t.keyword == keyword_object) {
                 // class name
                 parse_token(&t);
 
