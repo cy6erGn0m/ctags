@@ -33,6 +33,20 @@ enum DeclarationKind {
     kind_const
 };
 
+enum DeclarationAccess {
+    access_public,
+    access_protected,
+    access_private,
+    access_internal
+};
+
+static char* access_consts[] = {
+    "public",
+    "protected",
+    "private",
+    "internal"
+};
+
 enum KeywordType {
     keyword_package,
     keyword_import,
@@ -353,12 +367,13 @@ static void skip_open_close(int expected_close) {
     }
 }
 
-static void make_tag_entry(struct Token * t, int kind) {
+static void make_tag_entry(struct Token * t, int kind, int access) {
     tagEntryInfo e;
     initTagEntry(&e, vStringValue(t->buffer), kind);
 
     e.lineNumber = t->line_number;
     e.filePosition = t->file_position;
+    e.extensionFields.access = access_consts[access];
 
     makeTagEntry(&e);
 }
@@ -366,6 +381,7 @@ static void make_tag_entry(struct Token * t, int kind) {
 static void find_kotlin_tags() {
     struct Token t;
     struct Token sub;
+    int access = access_public;
 
     t.buffer = vStringNew();
     sub.buffer = vStringNew();
@@ -380,9 +396,17 @@ static void find_kotlin_tags() {
             skip_until_eol();
         } else if (t.token == token_keyword) {
             // printf("keyword %s\n", vStringValue(t.buffer));
-            if (t.keyword == modifier_public || t.keyword == modifier_internal ||
-                    t.keyword == modifier_private || t.keyword == modifier_abstract ||
-                    t.keyword == modifier_protected ||
+            
+            if (t.keyword == modifier_internal) {
+                access = access_internal;
+            } else if (t.keyword == modifier_protected) {
+                access = access_protected;
+            } else if (t.keyword == modifier_private) {
+                access = access_private;
+            } else if (t.keyword == modifier_public) {
+                access = access_public;
+            } else if (
+                    t.keyword == modifier_abstract ||
                     t.keyword == modifier_open ||
                     t.keyword == modifier_final ||
                     t.keyword == modifier_override ||
@@ -393,7 +417,7 @@ static void find_kotlin_tags() {
                 parse_token(&t);
 
                 if (t.token == token_identifier) {
-                    make_tag_entry(&t, kind_class);
+                    make_tag_entry(&t, kind_class, access);
                 }
 
                 skip_until_eol();
@@ -403,8 +427,11 @@ static void find_kotlin_tags() {
                 parse_token(&t);
                 
                 if (t.token == token_identifier) {
-                    make_tag_entry(&t, kind_typealias);
+                    make_tag_entry(&t, kind_typealias, access);
                 }
+
+                skip_until_eol();
+                access = access_public;
             } else if (t.keyword == modifier_const) {
                 // const val xx [:type] = initializer
                 
@@ -413,11 +440,12 @@ static void find_kotlin_tags() {
                     parse_token(&t);
 
                     if (t.token == token_identifier) {
-                        make_tag_entry(&t, kind_const);
+                        make_tag_entry(&t, kind_const, access);
                     }
                 }
 
                 skip_until_eol();
+                access = access_public;
             } else if (t.keyword == keyword_fun) {
                 // angle, receiver or function name
                 parse_token(&t);
@@ -436,20 +464,23 @@ static void find_kotlin_tags() {
                     if (sub.token == token_dot) {
                         parse_token(&sub);
                         if (sub.token == token_identifier) {
-                            make_tag_entry(&sub, kind_function);
+                            make_tag_entry(&sub, kind_function, access);
                         }
                     } else if (sub.token == token_par_open) {
-                        make_tag_entry(&t, kind_function);
+                        make_tag_entry(&t, kind_function, access);
                     } else {
                         // recover unexpected
                         skip_until_eol();
+                        access = access_public;
                     }
                 } else {
                     // recover unexpected
                     skip_until_eol();
+                    access = access_public;
                 }
             } else {
                 skip_until_eol();
+                access = access_public;
             }
         } else if (t.token == token_identifier) {
             // most likely yet another modifier, simply ignore it
